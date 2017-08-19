@@ -1,49 +1,40 @@
 FROM openjdk:8-jre-alpine
+ARG VANILLA_VERSION=1.10.2
+ARG SPONGE_VERSION=5.2.0
+ARG SPONGE_RELEASE=BETA-393
+ARG LAUNCH_WRAPPER_VERSION=1.12
 
-ARG SPONGE_VERSION=1.10.2-5.2.0-BETA-387
-ARG LAUNCHWRAPPER_VERSION=1.12
+LABEL maintainer="Yuxiang Zhu <vfreex@gmail.com>" \
+    name=spongevanilla \
+    version=${VANILLA_VERSION}-${SPONGE_VERSION} \
+    release=${SPONGE_RELEASE}
 
-LABEL \
-  name=spongevanilla \
-  version="$SPONGE_VERSION" \
-  maintainer='Yuxiang Zhu <vfreex@gmail.com>'
+ARG SPONGEVANILLA_ROOT=/opt/spongevanilla
+ARG SPONGEVANILLA_WORKDIR=/var/local/spongevanilla
+ARG SPONGEVANILLA_URL=https://repo.spongepowered.org/maven/org/spongepowered/spongevanilla/${VANILLA_VERSION}-${SPONGE_VERSION}-${SPONGE_RELEASE}/spongevanilla-${VANILLA_VERSION}-${SPONGE_VERSION}-${SPONGE_RELEASE}.jar
+ARG VANILLA_URL=https://s3.amazonaws.com/Minecraft.Download/versions/${VANILLA_VERSION}/minecraft_server.${VANILLA_VERSION}.jar
+ARG LAUNCHWRAPPER_URL=https://libraries.minecraft.net/net/minecraft/launchwrapper/${LAUNCH_WRAPPER_VERSION}/launchwrapper-${LAUNCH_WRAPPER_VERSION}.jar
 
-ENV SPONGE_WORKSPACE=/var/local/sponge \
-  SPONGE_ROOT=/opt/sponge \
-  SPONGE_USER=sponge \
-  SPONGE_GROUP=sponge \
-  SPONGE_VERSION="$SPONGE_VERSION" \
-  LAUNCHWRAPPER_VERSION="$LAUNCHWRAPPER_VERSION" \
-  JAVA_OPTS='-Xms1G -Xmx2G'
+RUN apk --no-cache add --virtual .build-deps ca-certificates wget \
+    # install SpongeVanilla
+    && mkdir -p "$SPONGEVANILLA_ROOT" \
+    && wget "$SPONGEVANILLA_URL" -O "$SPONGEVANILLA_ROOT"/spongevanilla.jar \
+    # install Vanilla server
+    && wget "$VANILLA_URL" -O "$SPONGEVANILLA_ROOT/minecraft_server.${VANILLA_VERSION}.jar" \
+    && mkdir -p "$SPONGEVANILLA_ROOT/libraries/net/minecraft/launchwrapper/${LAUNCH_WRAPPER_VERSION}" \
+    # install launchwrapper
+    && wget "$LAUNCHWRAPPER_URL" -O "$SPONGEVANILLA_ROOT/libraries/net/minecraft/launchwrapper/${LAUNCH_WRAPPER_VERSION}/launchwrapper-${LAUNCH_WRAPPER_VERSION}.jar" \
+    # create workdir
+    && mkdir -p "$SPONGEVANILLA_WORKDIR" \
+    && chown -R nobody:root "$SPONGEVANILLA_WORKDIR" \
+    && chmod -R g+rwX "$SPONGEVANILLA_WORKDIR" \
+    # clean up
+    && apk del .build-deps
 
-RUN \
-  apk update \
-  && apk add --virtual build-deps wget ca-certificates \
-  # install SpongeVanilla
-  && mkdir -p "$SPONGE_ROOT" \
-  && wget -O "$SPONGE_ROOT/spongevanilla-$SPONGE_VERSION.jar" https://repo.spongepowered.org/maven/org/spongepowered/spongevanilla/"$SPONGE_VERSION"/spongevanilla-"$SPONGE_VERSION".jar \
-  && ln -s "$SPONGE_ROOT/spongevanilla-$SPONGE_VERSION.jar" "$SPONGE_ROOT/spongevanilla.jar" \
-  # install Vanilla
-  && MINECRAFT_VERSION=$(echo "$SPONGE_VERSION" | cut -d - -f 1) \
-  && wget -O "$SPONGE_ROOT/minecraft_server.$MINECRAFT_VERSION.jar" https://s3.amazonaws.com/Minecraft.Download/versions/"$MINECRAFT_VERSION"/minecraft_server."$MINECRAFT_VERSION".jar \
-  && LAUNCHWRAPPER_DIR=$SPONGE_ROOT/libraries/net/minecraft/launchwrapper/$LAUNCHWRAPPER_VERSION \
-  && mkdir -p "$LAUNCHWRAPPER_DIR" \
-  && wget -O "$LAUNCHWRAPPER_DIR/launchwrapper-$LAUNCHWRAPPER_VERSION.jar" \
-    "https://libraries.minecraft.net/net/minecraft/launchwrapper/$LAUNCHWRAPPER_VERSION/launchwrapper-$LAUNCHWRAPPER_VERSION.jar" \
-  # create user and workspace
-  && addgroup -S "$SPONGE_GROUP" \
-  && adduser -G "$SPONGE_GROUP" -S "$SPONGE_USER" \
-  && mkdir -p "$SPONGE_WORKSPACE" \
-  && chown -R "$SPONGE_USER":"$SPONGE_GROUP" "$SPONGE_WORKSPACE" \
-  # install utils
-  && apk add su-exec tini \
-  # clean up
-  && apk del build-deps \
-  && rm -rf /var/lib/apk/
-
+ENV SPONGEVANILLA_JAVA_OPTS='-Xms1G -Xmx2G' \
+    SPONGEVANILLA_OPTS='--no-download'
+USER 9999
+WORKDIR "$SPONGEVANILLA_WORKDIR"
 COPY files/ /
+CMD ["/sponge-vanilla.sh"]
 
-WORKDIR "$SPONGE_WORKSPACE"
-ENTRYPOINT ["/sbin/tini", "--", "/usr/local/sbin/entrypoint.sh"]
-CMD ["/usr/local/bin/spongevanilla"]
-VOLUME "$SPONGE_WORKSPACE"

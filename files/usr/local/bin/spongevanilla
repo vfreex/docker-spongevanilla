@@ -1,8 +1,0 @@
-#!/bin/sh
-set -e
-
-: ${SPONGE_USER:=sponge}
-: ${SPONGE_GROUP:=sponge}
-: ${JAVA_OPTS:=-Xms1G -Xmx2G}
-
-/sbin/su-exec "$SPONGE_USER":"$SPONGE_GROUP" /usr/bin/java $JAVA_OPTS -jar /opt/sponge/spongevanilla.jar --no-download "$@"
